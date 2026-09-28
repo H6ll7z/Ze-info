@@ -420,8 +420,16 @@ class _HomePageState extends State<HomePage> {
                   height: 420,
                   child: ListView.builder(
                     itemCount: log.length,
-                    itemBuilder: (c, n) => Text(log[n].text,
-                        style: TextStyle(color: _logColor(log[n].kind), fontSize: 11, height: 1.5)),
+                    itemBuilder: (c, n) {
+                      final st = TextStyle(color: _logColor(log[n].kind), fontSize: 11, height: 1.5);
+                      final m = RegExp(r'^(.* on )(\S+)( \(.*)$').firstMatch(log[n].text);
+                      if (log[n].kind != 0 || m == null) return Text(log[n].text, style: st);
+                      return Text.rich(TextSpan(style: st, children: [
+                        TextSpan(text: m.group(1)),
+                        TextSpan(text: m.group(2), style: st.copyWith(color: yellow)),
+                        TextSpan(text: m.group(3)),
+                      ]));
+                    },
                   ),
                 ),
               ]),
