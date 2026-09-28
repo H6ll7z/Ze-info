@@ -299,11 +299,6 @@ class _HomePageState extends State<HomePage> {
         ),
       );
 
-  String _dur(double s) {
-    final m = s ~/ 60;
-    return m >= 60 ? '${m ~/ 60}h${m % 60}m' : '${m}m';
-  }
-
   Color _logColor(int k) => switch (k) {
         1 => green,
         2 => const Color(0xFFFFB74D),
@@ -419,31 +414,10 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
                 const SizedBox(height: 18),
-                const Text('> ONLINE NOW', style: TextStyle(color: dim, fontSize: 11)),
-                const SizedBox(height: 6),
-                _box(
-                  child: (players.where((p) => p.name.isNotEmpty).isEmpty)
-                      ? const Text('(EMPTY OR HIDDEN)', style: TextStyle(color: dim, fontSize: 12))
-                      : Column(children: [
-                          for (final p in players.where((p) => p.name.isNotEmpty))
-                            Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 2),
-                              child: Row(children: [
-                                Expanded(
-                                    child: Text(p.name,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(color: green, fontSize: 12))),
-                                Text('${_dur(p.seconds)}  ${p.score}',
-                                    style: const TextStyle(color: dim, fontSize: 11)),
-                              ]),
-                            ),
-                        ]),
-                ),
-                const SizedBox(height: 18),
                 const Text('> ACTIVITY LOG', style: TextStyle(color: dim, fontSize: 11)),
                 const SizedBox(height: 6),
                 _box(
-                  height: 260,
+                  height: 420,
                   child: ListView.builder(
                     itemCount: log.length,
                     itemBuilder: (c, n) => Text(log[n].text,
