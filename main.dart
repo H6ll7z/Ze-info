@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:math';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -162,57 +163,63 @@ const blush = Color(0xFFFF6FA3);
 
 List<Shadow> glow(Color c, [double b = 8]) => [Shadow(color: c.withOpacity(0.7), blurRadius: b)];
 
-// ---------- 8-bit mascot logo (original pixel art, mirrored halves) ----------
+// ---------- 8-bit animated red eye logo (original pixel art) ----------
 
-const List<String> _logoHalf = [
+const List<String> _eyeHalf = [
   "........",
-  "........",
-  "...##...",
-  "..####..",
-  ".######.",
-  "#YYYYYY#",
-  "#YYYYYY#",
-  "#SSSSSS#",
-  "#SSSSSS#",
-  "#CSWWSS#",
-  "#CSWPSS#",
-  "#SSSSSS#",
-  "#SKKKKS#",
-  "#SKKKKS#",
-  ".SKKKKS.",
-  "..SSSS..",
+  "...LL...",
+  "..LLLL..",
+  ".LLLLLL.",
+  "#RRRRRR#",
+  "#RRIIII#",
+  "#RRIIII#",
+  "#RRRRRR#",
+  ".LLLLLL.",
+  "...LL...",
 ];
 
-Color _pixelColor(String ch) => switch (ch) {
-      '#' => const Color(0xFF04140A),
-      'Y' => yellow,
-      'S' => skinTone,
-      'W' => const Color(0xFFEFFFF5),
-      'P' => yellow,
-      'K' => const Color(0xFF04140A).withOpacity(0.9),
-      'C' => blush,
+Color _eyeColor(String ch) => switch (ch) {
+      '#' => const Color(0xFF200000),
+      'L' => const Color(0xFF4A0000),
+      'R' => const Color(0xFFFF1744),
+      'I' => const Color(0xFF7A0000),
       _ => Colors.transparent,
     };
 
-class PixelLogoPainter extends CustomPainter {
-  const PixelLogoPainter();
+class PixelEyePainter extends CustomPainter {
+  final double t;
+  const PixelEyePainter(this.t);
+
   @override
   void paint(Canvas canvas, Size size) {
-    final cell = size.width / (_logoHalf.first.length * 2);
-    for (var row = 0; row < _logoHalf.length; row++) {
-      final half = _logoHalf[row];
+    final cols = _eyeHalf.first.length * 2;
+    final cell = size.width / cols;
+    for (var row = 0; row < _eyeHalf.length; row++) {
+      final half = _eyeHalf[row];
       final full = half + half.split('').reversed.join();
       for (var col = 0; col < full.length; col++) {
         final ch = full[col];
         if (ch == '.') continue;
-        final paint = Paint()..color = _pixelColor(ch);
-        canvas.drawRect(Rect.fromLTWH(col * cell, row * cell, cell + 0.5, cell + 0.5), paint);
+        canvas.drawRect(
+            Rect.fromLTWH(col * cell, row * cell, cell + 0.5, cell + 0.5),
+            Paint()..color = _eyeColor(ch));
       }
     }
+    // animated glowing pupil, sliding side to side inside the iris
+    final cx = size.width / 2 + sin(t * 2 * pi) * cell * 1.3;
+    final cy = cell * 5.5;
+    final pulse = 0.5 + 0.5 * sin(t * 2 * pi);
+    canvas.drawCircle(
+        Offset(cx, cy), cell * 1.8, Paint()
+          ..color = const Color(0xFFFF1744).withOpacity(0.35 + 0.25 * pulse)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6));
+    canvas.drawCircle(Offset(cx, cy), cell * 1.05, Paint()..color = Colors.black);
+    canvas.drawCircle(Offset(cx - cell * 0.3, cy - cell * 0.3), cell * 0.28,
+        Paint()..color = Colors.white.withOpacity(0.85));
   }
 
   @override
-  bool shouldRepaint(PixelLogoPainter old) => false;
+  bool shouldRepaint(covariant PixelEyePainter old) => old.t != t;
 }
 
 class LogLine {
@@ -441,16 +448,21 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
               child: Column(children: [
                 Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    padding: const EdgeInsets.all(3),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: border),
-                      color: const Color(0xFF020C06),
-                      boxShadow: [BoxShadow(color: green.withOpacity(0.35), blurRadius: 10)],
+                  AnimatedBuilder(
+                    animation: _anim,
+                    builder: (c, _) => Container(
+                      width: 40,
+                      height: 40,
+                      padding: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: const Color(0xFFFF1744).withOpacity(0.7)),
+                        color: const Color(0xFF020C06),
+                        boxShadow: [
+                          BoxShadow(color: const Color(0xFFFF1744).withOpacity(0.55), blurRadius: 14),
+                        ],
+                      ),
+                      child: CustomPaint(painter: PixelEyePainter(_anim.value)),
                     ),
-                    child: const CustomPaint(painter: PixelLogoPainter()),
                   ),
                   const SizedBox(width: 10),
                   Flexible(
