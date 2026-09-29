@@ -320,11 +320,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       );
 
   Color _logColor(int k) => switch (k) {
-        1 => green,
+        1 => dim,
         2 => const Color(0xFFFFB74D),
         3 => yellow,
         4 => red,
-        _ => dim,
+        _ => green,
       };
 
   Widget _label(String t) => Text(t, style: const TextStyle(color: dim, fontSize: 11, letterSpacing: 2));
