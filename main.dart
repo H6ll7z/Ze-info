@@ -157,8 +157,63 @@ const dim = Color(0xFF1E8F4A);
 const border = Color(0xFF0E5A2A);
 const red = Color(0xFFFF2E63);
 const yellow = Color(0xFFD4E157);
+const skinTone = Color(0xFF8CFFC2);
+const blush = Color(0xFFFF6FA3);
 
 List<Shadow> glow(Color c, [double b = 8]) => [Shadow(color: c.withOpacity(0.7), blurRadius: b)];
+
+// ---------- 8-bit mascot logo (original pixel art, mirrored halves) ----------
+
+const List<String> _logoHalf = [
+  "........",
+  "........",
+  "...##...",
+  "..####..",
+  ".######.",
+  "#YYYYYY#",
+  "#YYYYYY#",
+  "#SSSSSS#",
+  "#SSSSSS#",
+  "#CSWWSS#",
+  "#CSWPSS#",
+  "#SSSSSS#",
+  "#SKKKKS#",
+  "#SKKKKS#",
+  ".SKKKKS.",
+  "..SSSS..",
+];
+
+Color _pixelColor(String ch) => switch (ch) {
+      '#' => const Color(0xFF04140A),
+      'Y' => yellow,
+      'S' => skinTone,
+      'W' => const Color(0xFFEFFFF5),
+      'P' => yellow,
+      'K' => const Color(0xFF04140A).withOpacity(0.9),
+      'C' => blush,
+      _ => Colors.transparent,
+    };
+
+class PixelLogoPainter extends CustomPainter {
+  const PixelLogoPainter();
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cell = size.width / (_logoHalf.first.length * 2);
+    for (var row = 0; row < _logoHalf.length; row++) {
+      final half = _logoHalf[row];
+      final full = half + half.split('').reversed.join();
+      for (var col = 0; col < full.length; col++) {
+        final ch = full[col];
+        if (ch == '.') continue;
+        final paint = Paint()..color = _pixelColor(ch);
+        canvas.drawRect(Rect.fromLTWH(col * cell, row * cell, cell + 0.5, cell + 0.5), paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(PixelLogoPainter old) => false;
+}
 
 class LogLine {
   final String text;
@@ -385,13 +440,30 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             child: Padding(
               padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
               child: Column(children: [
-                Text('S E R V E R - W A T C H',
-                    style: TextStyle(
-                        color: green,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 2,
-                        shadows: glow(green, 12))),
+                Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: border),
+                      color: const Color(0xFF020C06),
+                      boxShadow: [BoxShadow(color: green.withOpacity(0.35), blurRadius: 10)],
+                    ),
+                    child: const CustomPaint(painter: PixelLogoPainter()),
+                  ),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Text('S E R V E R - W A T C H',
+                        overflow: TextOverflow.visible,
+                        style: TextStyle(
+                            color: green,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 2,
+                            shadows: glow(green, 12))),
+                  ),
+                ]),
                 const SizedBox(height: 2),
                 const Text('// A2S SOURCE QUERY MONITOR',
                     style: TextStyle(color: dim, fontSize: 9, letterSpacing: 2)),
