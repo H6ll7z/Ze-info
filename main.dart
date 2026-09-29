@@ -158,68 +158,138 @@ const dim = Color(0xFF1E8F4A);
 const border = Color(0xFF0E5A2A);
 const red = Color(0xFFFF2E63);
 const yellow = Color(0xFFD4E157);
-const skinTone = Color(0xFF8CFFC2);
-const blush = Color(0xFFFF6FA3);
 
 List<Shadow> glow(Color c, [double b = 8]) => [Shadow(color: c.withOpacity(0.7), blurRadius: b)];
 
-// ---------- 8-bit animated red eye logo (original pixel art) ----------
+// ---------- Shaded "realistic" eyeball logo (gradients, no pixel grid) ----------
 
-const List<String> _eyeHalf = [
-  "........",
-  "...LL...",
-  "..LLLL..",
-  ".LLLLLL.",
-  "#RRRRRR#",
-  "#RRIIII#",
-  "#RRIIII#",
-  "#RRRRRR#",
-  ".LLLLLL.",
-  "...LL...",
-];
+class RealisticEyePainter extends CustomPainter {
+  final Offset look; // pupil offset: dx in [-1,1], dy in [-0.35,0.35]
+  final double pulse; // 0..1 glow pulse
+  final double blink; // 0 (open) .. 1 (closed)
+  final bool alert; // true when server is offline -> faster/brighter glow
 
-Color _eyeColor(String ch) => switch (ch) {
-      '#' => const Color(0xFF200000),
-      'L' => const Color(0xFF4A0000),
-      'R' => const Color(0xFFFF1744),
-      'I' => const Color(0xFF7A0000),
-      _ => Colors.transparent,
-    };
-
-class PixelEyePainter extends CustomPainter {
-  final double t;
-  const PixelEyePainter(this.t);
+  const RealisticEyePainter({
+    required this.look,
+    required this.pulse,
+    required this.blink,
+    required this.alert,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
-    final cols = _eyeHalf.first.length * 2;
-    final cell = size.width / cols;
-    for (var row = 0; row < _eyeHalf.length; row++) {
-      final half = _eyeHalf[row];
-      final full = half + half.split('').reversed.join();
-      for (var col = 0; col < full.length; col++) {
-        final ch = full[col];
-        if (ch == '.') continue;
-        canvas.drawRect(
-            Rect.fromLTWH(col * cell, row * cell, cell + 0.5, cell + 0.5),
-            Paint()..color = _eyeColor(ch));
-      }
+    final w = size.width, h = size.height;
+
+    // almond-shaped eye outline
+    final eyePath = Path()
+      ..moveTo(0, h * 0.52)
+      ..quadraticBezierTo(w * 0.5, -h * 0.12, w, h * 0.52)
+      ..quadraticBezierTo(w * 0.5, h * 1.14, 0, h * 0.52)
+      ..close();
+
+    canvas.save();
+    canvas.clipPath(eyePath);
+
+    // sclera: radial gradient gives it a curved, glossy sphere feel
+    final scleraShader = const RadialGradient(
+      center: Alignment(-0.35, -0.45),
+      radius: 1.0,
+      colors: [Colors.white, Color(0xFFE9DEDA), Color(0xFFC7B3AF)],
+      stops: [0.0, 0.65, 1.0],
+    ).createShader(Rect.fromLTWH(0, 0, w, h));
+    canvas.drawRect(Rect.fromLTWH(0, 0, w, h), Paint()..shader = scleraShader);
+
+    // faint bloodshot veins
+    final veinPaint = Paint()
+      ..color = const Color(0xFFD23B3B).withOpacity(0.28)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.7;
+    canvas.drawPath(
+        Path()
+          ..moveTo(w * 0.02, h * 0.5)
+          ..quadraticBezierTo(w * 0.18, h * 0.42, w * 0.34, h * 0.5),
+        veinPaint);
+    canvas.drawPath(
+        Path()
+          ..moveTo(w * 0.98, h * 0.55)
+          ..quadraticBezierTo(w * 0.82, h * 0.62, w * 0.66, h * 0.55),
+        veinPaint);
+
+    // iris + pupil, snap-look position
+    final irisCenter = Offset(w * 0.5 + look.dx * w * 0.16, h * 0.55 + look.dy * h * 0.12);
+    final irisR = w * 0.27;
+    final irisRect = Rect.fromCircle(center: irisCenter, radius: irisR);
+    final irisShader = const RadialGradient(
+      colors: [Color(0xFFB33A3A), Color(0xFF7A1414), Color(0xFF320707)],
+      stops: [0.0, 0.65, 1.0],
+    ).createShader(irisRect);
+    canvas.drawCircle(irisCenter, irisR, Paint()..shader = irisShader);
+
+    // fine iris fibers radiating from the pupil
+    final fiber = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.6;
+    for (var k = 0; k < 20; k++) {
+      final a = (k / 20) * 2 * pi;
+      final inner = Offset(irisCenter.dx + cos(a) * irisR * 0.32, irisCenter.dy + sin(a) * irisR * 0.32);
+      final outer = Offset(irisCenter.dx + cos(a) * irisR * 0.92, irisCenter.dy + sin(a) * irisR * 0.92);
+      fiber.color = (k.isEven ? Colors.black : const Color(0xFFFF6B6B)).withOpacity(0.18);
+      canvas.drawLine(inner, outer, fiber);
     }
-    // animated glowing pupil, sliding side to side inside the iris
-    final cx = size.width / 2 + sin(t * 2 * pi) * cell * 1.3;
-    final cy = cell * 5.5;
-    final pulse = 0.5 + 0.5 * sin(t * 2 * pi);
+
+    // limbal ring (dark edge around iris) for definition
     canvas.drawCircle(
-        Offset(cx, cy), cell * 1.8, Paint()
-          ..color = const Color(0xFFFF1744).withOpacity(0.35 + 0.25 * pulse)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6));
-    canvas.drawCircle(Offset(cx, cy), cell * 1.05, Paint()..color = Colors.black);
-    canvas.drawCircle(Offset(cx - cell * 0.3, cy - cell * 0.3), cell * 0.28,
-        Paint()..color = Colors.white.withOpacity(0.85));
+        irisCenter, irisR, Paint()..style = PaintingStyle.stroke..strokeWidth = 1.4..color = Colors.black.withOpacity(0.55));
+
+    // glow behind pupil, tied to server status
+    final glowColor = alert ? const Color(0xFFFF5252) : const Color(0xFFFF1744);
+    final glowOpacity = alert ? 0.45 + 0.35 * pulse : 0.25 + 0.2 * pulse;
+    canvas.drawCircle(irisCenter, irisR * 0.95, Paint()
+      ..color = glowColor.withOpacity(glowOpacity)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4));
+
+    // pupil
+    final pupilR = irisR * 0.42;
+    canvas.drawCircle(irisCenter, pupilR, Paint()..color = Colors.black);
+
+    // glossy specular highlights
+    canvas.drawCircle(Offset(irisCenter.dx - irisR * 0.32, irisCenter.dy - irisR * 0.32), irisR * 0.22,
+        Paint()..color = Colors.white.withOpacity(0.9));
+    canvas.drawCircle(Offset(irisCenter.dx + irisR * 0.28, irisCenter.dy + irisR * 0.34), irisR * 0.08,
+        Paint()..color = Colors.white.withOpacity(0.35));
+
+    // subtle inner shadow near the lids for depth
+    canvas.drawRect(
+        Rect.fromLTWH(0, 0, w, h * 0.1), Paint()..color = Colors.black.withOpacity(0.18));
+    canvas.drawRect(
+        Rect.fromLTWH(0, h * 0.9, w, h * 0.1), Paint()..color = Colors.black.withOpacity(0.18));
+
+    canvas.restore(); // end clip to eye shape
+
+    // eyelid outline
+    canvas.drawPath(
+        eyePath, Paint()..style = PaintingStyle.stroke..strokeWidth = 1.4..color = const Color(0xFF2A1414));
+
+    // blink: eyelids closing over the eye
+    if (blink > 0) {
+      canvas.save();
+      canvas.clipPath(eyePath);
+      const lidShader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Color(0xFF7A4A42), Color(0xFF5A342E)],
+      );
+      final lidPaint = Paint()..shader = lidShader.createShader(Rect.fromLTWH(0, 0, w, h));
+      final closeH = h * 0.6 * blink;
+      canvas.drawRect(Rect.fromLTWH(0, 0, w, closeH), lidPaint);
+      canvas.drawRect(Rect.fromLTWH(0, h - closeH, w, closeH), lidPaint);
+      canvas.restore();
+    }
   }
 
   @override
-  bool shouldRepaint(covariant PixelEyePainter old) => old.t != t;
+  bool shouldRepaint(covariant RealisticEyePainter old) =>
+      old.look != look || old.pulse != pulse || old.blink != blink || old.alert != alert;
 }
 
 class LogLine {
@@ -234,7 +304,7 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin {
+class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   String host = '74.91.124.21';
   int port = 27015;
   ServerInfo? info;
@@ -247,6 +317,47 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   late final AnimationController _anim =
       AnimationController(vsync: this, duration: const Duration(seconds: 7))..repeat();
 
+  // -- eye look/blink state --
+  final Random _rng = Random();
+  Offset _eyeFrom = Offset.zero;
+  Offset _eyeTo = Offset.zero;
+  late final AnimationController _eyeAnim =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 220));
+  late final AnimationController _blinkAnim =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 90));
+  Timer? _lookTimer, _blinkTimer;
+
+  Offset _currentLook() {
+    final k = Curves.easeOutBack.transform(_eyeAnim.value);
+    return Offset.lerp(_eyeFrom, _eyeTo, k)!;
+  }
+
+  void _scheduleLook() {
+    final holdMs = 1200 + _rng.nextInt(1800); // hold a glance for 1.2-3.0s
+    _lookTimer = Timer(Duration(milliseconds: holdMs), () {
+      if (!mounted) return;
+      setState(() {
+        _eyeFrom = _currentLook();
+        _eyeTo = Offset(_rng.nextDouble() * 2 - 1, _rng.nextDouble() * 0.7 - 0.35);
+      });
+      _eyeAnim
+        ..reset()
+        ..forward();
+      _scheduleLook();
+    });
+  }
+
+  void _scheduleBlink() {
+    final delayMs = 3000 + _rng.nextInt(3000); // blink every 3-6s
+    _blinkTimer = Timer(Duration(milliseconds: delayMs), () async {
+      if (!mounted) return;
+      await _blinkAnim.forward(from: 0);
+      if (!mounted) return;
+      await _blinkAnim.reverse();
+      _scheduleBlink();
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -255,13 +366,19 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     tick = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
+    _scheduleLook();
+    _scheduleBlink();
   }
 
   @override
   void dispose() {
     poll?.cancel();
     tick?.cancel();
+    _lookTimer?.cancel();
+    _blinkTimer?.cancel();
     _anim.dispose();
+    _eyeAnim.dispose();
+    _blinkAnim.dispose();
     super.dispose();
   }
 
@@ -449,20 +566,35 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               child: Column(children: [
                 Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                   AnimatedBuilder(
-                    animation: _anim,
-                    builder: (c, _) => Container(
-                      width: 40,
-                      height: 40,
-                      padding: const EdgeInsets.all(3),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: const Color(0xFFFF1744).withOpacity(0.7)),
-                        color: const Color(0xFF020C06),
-                        boxShadow: [
-                          BoxShadow(color: const Color(0xFFFF1744).withOpacity(0.55), blurRadius: 14),
-                        ],
-                      ),
-                      child: CustomPaint(painter: PixelEyePainter(_anim.value)),
-                    ),
+                    animation: Listenable.merge([_anim, _eyeAnim, _blinkAnim]),
+                    builder: (c, _) {
+                      final freq = online ? 1.0 : 3.0;
+                      final pulse = 0.5 + 0.5 * sin(_anim.value * 2 * pi * freq);
+                      return Container(
+                        width: 40,
+                        height: 40,
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                              color: (online ? const Color(0xFFFF1744) : const Color(0xFFFF5252))
+                                  .withOpacity(0.7)),
+                          color: const Color(0xFF020C06),
+                          boxShadow: [
+                            BoxShadow(
+                                color: (online ? const Color(0xFFFF1744) : const Color(0xFFFF5252))
+                                    .withOpacity(0.4 + 0.3 * pulse),
+                                blurRadius: online ? 14 : 20),
+                          ],
+                        ),
+                        child: CustomPaint(
+                            painter: RealisticEyePainter(
+                          look: _currentLook(),
+                          pulse: pulse,
+                          blink: _blinkAnim.value,
+                          alert: !online,
+                        )),
+                      );
+                    },
                   ),
                   const SizedBox(width: 10),
                   Flexible(
